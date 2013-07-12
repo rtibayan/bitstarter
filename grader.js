@@ -76,7 +76,7 @@ if(require.main == module) {
 
     if (program.url && !program.file) {
         // call restler to grab data and process with callback function
-	rest.get(program.url).on('complete', function(data) {
+        rest.get(program.url).on('complete', function(data) {
             if (data instanceof Error) {
                 console.log("Error accessing URL", program.url, ". Exiting.");
                 process.exit(1);
