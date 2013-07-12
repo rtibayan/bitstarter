@@ -22,6 +22,7 @@ References:
 */
 
 var fs = require('fs');
+var rest = require('restler');
 var program = require('commander');
 var cheerio = require('cheerio');
 var HTMLFILE_DEFAULT = "index.html";
@@ -44,12 +45,11 @@ var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+var checkHtmlData = function(htmlData, checksfile) {
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
-        var present = $(checks[ii]).length > 0;
+        var present = htmlData(checks[ii]).length > 0;
         out[checks[ii]] = present;
     }
     return out;
@@ -61,14 +61,41 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
+var processHtml = function(htmlData, checksfile) {
+    var checkJson = checkHtmlData(htmlData, checksfile);
+    var outJson = JSON.stringify(checkJson, null, 4);
+    console.log(outJson);
+}
+
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to file')
+        .option('-u, --url <url_path>', 'Path of URL')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    if (program.url && !program.file) {
+        // call restler to grab data and process with callback function
+	rest.get(program.url).on('complete', function(data) {
+            if (data instanceof Error) {
+                console.log("Error accessing URL", program.url, ". Exiting.");
+                process.exit(1);
+            }
+            // use cheerio to convert html string to cheerio data
+            htmlData = cheerio.load(data);
+            processHtml(htmlData, program.checks);
+        });
+    }
+    else if (program.file && !program.url) {
+        // use call method to convert html file to cheerio data
+        htmlData = cheerioHtmlFile(program.file);
+        processHtml(htmlData, program.checks);
+    }
+    else {
+        console.log("Input only 1 file or url to check. Exiting.");
+        process.exit(1);
+    }
+
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
